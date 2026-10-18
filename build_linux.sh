@@ -1,0 +1,1 @@
+node ./node_modules/electron-builder/out/cli/cli.js --dir

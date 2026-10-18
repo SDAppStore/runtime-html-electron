@@ -1,0 +1,38 @@
+{
+  "name": "sdappstore-html-runtime",
+  "version": "1.0.0",
+  "description": "Universal HTML runtime engine for SDAppStore apps",
+  "productName": "SDAppStore HTML Electron Runtime",
+  "main": "main.js",
+  "scripts": {
+    "start": "node ./node_modules/electron/cli.js .",
+    "build": "node ./node_modules/electron-builder/out/cli/cli.js --dir"
+  },
+  "build": {
+    "appId": "com.superdiamond.htmlruntime",
+    "productName": "SDAppStore HTML Electron Runtime",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "icon.png"
+    ],
+    "win": {
+      "target": ["portable"],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "icon.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

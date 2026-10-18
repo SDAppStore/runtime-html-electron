@@ -1,0 +1,27 @@
+{
+  "web_security": false,
+  "allow_any_iframes": true,
+  "server": "localhost:6053",
+  "virt_server": "com.mojang.minecraft.sdappstore.virt",
+  "user_data_path": "userData",
+  "start_url": "http://com.mojang.minecraft.sdappstore.virt/index.html",
+  "window_width": 1280,
+  "window_height": 720,
+  "min_width": 800,
+  "min_height": 600,
+  "fullscreen": false,
+  "kiosk": false,
+  "frame": true,
+  "transparent": false,
+  "auto_hide_menu_bar": true,
+  "background_color": "#1e1e1e",
+  "always_on_top": false,
+  "open_devtools": false,
+  "remote_debugging_port": 9229,
+  "node_integration": false,
+  "context_isolation": true,
+  "webview_tag": true,
+  "chromium_switches": [
+    { "name": "ignore-certificate-errors", "value": "" }
+  ]
+}
