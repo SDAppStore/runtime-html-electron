@@ -5,13 +5,11 @@ const fs = require('fs');
 // Dynamically look for instance_cfg.json right next to the executable/binary,
 // falling back to development directory if run via `npm start`
 const isPackaged = app.isPackaged;
-const configDir = isPackaged 
-  ? path.dirname(process.execPath) 
-  : __dirname;
 
-const binaryDir = path.dirname(process.execPath);
+const binaryDir = process.env.PORTABLE_EXECUTABLE_DIR
+  || path.dirname(process.execPath);
 
-const configPath = path.join(configDir, 'instance_cfg.json');
+const configPath = path.join(binaryDir, 'instance_cfg.json');
 
 let config = {
   web_security: false,
@@ -42,8 +40,14 @@ const targetUserData = config.user_data_path
   ? (path.isAbsolute(config.user_data_path) ? config.user_data_path : path.join(binaryDir, config.user_data_path))
   : path.join(binaryDir, 'userData');
 
-app.setPath('userData', targetUserData);
-console.log(`[Storage] User Data directory set to: ${app.getPath('userData')}`);
+try {
+  fs.mkdirSync(targetUserData, { recursive: true });
+  app.setPath('userData', targetUserData);
+  console.log(`[Storage] User Data directory set to: ${app.getPath('userData')}`);
+} catch (err) {
+  console.error('[Storage] Failed to initialize userData:', err);
+  app.quit();
+}
 
 // Apply global command-line switches based on config before app is ready
 if (config.web_security === false) {
@@ -54,7 +58,7 @@ if (config.web_security === false) {
 
 async function createWindow() {
   // Load Chrome Extensions from 'chrome_extensions' folder if it exists next to app
-  const extensionsDir = path.join(configDir, 'chrome_extensions');
+  const extensionsDir = path.join(binaryDir, 'chrome_extensions');
   if (fs.existsSync(extensionsDir)) {
     try {
       const extFolders = fs.readdirSync(extensionsDir, { withFileTypes: true })
@@ -71,7 +75,7 @@ async function createWindow() {
   }
 
   // Execute all .js scripts found in the 'electron_scripts' folder next to the binary
-  const scriptsDir = path.join(configDir, 'electron_scripts');
+  const scriptsDir = path.join(binaryDir, 'electron_scripts');
   if (fs.existsSync(scriptsDir)) {
     try {
       const scriptFiles = fs.readdirSync(scriptsDir)
