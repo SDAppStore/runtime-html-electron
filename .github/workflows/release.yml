@@ -1,67 +1,72 @@
-name: Build and Release
+
+name: Build Electron
 
 on:
-  workflow_dispatch: # This makes it manual-only via the Actions tab on GitHub!
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Build for Windows
+        type: boolean
+        default: true
+      linux:
+        description: Build for Linux
+        type: boolean
+        default: true
+      macos:
+        description: Build for macOS
+        type: boolean
+        default: true
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        env:
+          WINDOWS: ${{ inputs.windows }}
+          LINUX: ${{ inputs.linux }}
+          MACOS: ${{ inputs.macos }}
+        run: |
+          MATRIX='[]'
+
+          if [ "$WINDOWS" = "true" ]; then
+            MATRIX=$(echo "$MATRIX" | jq -c '. + ["windows"]')
+          fi
+
+          if [ "$LINUX" = "true" ]; then
+            MATRIX=$(echo "$MATRIX" | jq -c '. + ["linux"]')
+          fi
+
+          if [ "$MACOS" = "true" ]; then
+            MATRIX=$(echo "$MATRIX" | jq -c '. + ["macos"]')
+          fi
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
+    if: needs.prepare.outputs.matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-    
-    runs-on: ${{ matrix.os }}
+        platform: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+
+    runs-on: >-
+      ${{
+        matrix.platform == 'windows' && 'windows-latest' ||
+        matrix.platform == 'linux' && 'ubuntu-latest' ||
+        'macos-latest'
+      }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build platform executable
-        run: node ./node_modules/electron-builder/out/cli/cli.js --publish never
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-${{ matrix.os }}
-          path: dist/*
-          if-no-files-found: error
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required to create releases and push tags
-    
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-            path: downloaded-artifacts
-
-      - name: Generate timestamp tag
-        id: meta
-        run: echo "tag_name=v1.0.$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release and Upload Binaries
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag_name }}
-          name: "SDAppStore HTML Electron Runtime Release (${{ steps.meta.outputs.tag_name }})"
-          body: |
-            Manual build release for the **SDAppStore HTML Electron Runtime**.
-            - Built from commit: ${{ github.sha }}
-            - Cross-platform binaries for Windows, macOS, and Linux attached below.
-          draft: false
-          prerelease: false
-          files: |
-            downloaded-artifacts/artifact-windows-latest/**/*
-            downloaded-artifacts/artifact-macos-latest/**/*
-            downloaded-artifacts/artifact-ubuntu-latest/**/*
+      - run: npm ci
+      - run: npx electron-builder
