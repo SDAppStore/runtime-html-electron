@@ -1,0 +1,67 @@
+name: Build and Release
+
+on:
+  workflow_dispatch: # This makes it manual-only via the Actions tab on GitHub!
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build platform executable
+        run: node ./node_modules/electron-builder/out/cli/cli.js --publish never
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create releases and push tags
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+            path: downloaded-artifacts
+
+      - name: Generate timestamp tag
+        id: meta
+        run: echo "tag_name=v1.0.$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: "SDAppStore HTML Electron Runtime Release (${{ steps.meta.outputs.tag_name }})"
+          body: |
+            Manual build release for the **SDAppStore HTML Electron Runtime**.
+            - Built from commit: ${{ github.sha }}
+            - Cross-platform binaries for Windows, macOS, and Linux attached below.
+          draft: false
+          prerelease: false
+          files: |
+            downloaded-artifacts/artifact-windows-latest/**/*
+            downloaded-artifacts/artifact-macos-latest/**/*
+            downloaded-artifacts/artifact-ubuntu-latest/**/*
