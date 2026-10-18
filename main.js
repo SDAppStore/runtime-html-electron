@@ -9,6 +9,8 @@ const configDir = isPackaged
   ? path.dirname(process.execPath) 
   : __dirname;
 
+const binaryDir = path.dirname(process.execPath);
+
 const configPath = path.join(configDir, 'instance_cfg.json');
 
 let config = {
@@ -35,15 +37,12 @@ try {
   console.error('[Config] Error parsing instance_cfg.json:', err);
 }
 
-// -----------------------------------------------------------------
-// CUSTOM USER DATA DIRECTORY SETUP
-// -----------------------------------------------------------------
-// Default to a 'userData' folder next to the binary, OR use what's in config
-const customUserDataPath = config.user_data_path 
-  ? (path.isAbsolute(config.user_data_path) ? config.user_data_path : path.join(configDir, config.user_data_path))
-  : path.join(configDir, 'userData');
+// 2. Set User Data Path during setup phase (Must be before app ready)
+const targetUserData = config.user_data_path 
+  ? (path.isAbsolute(config.user_data_path) ? config.user_data_path : path.join(binaryDir, config.user_data_path))
+  : path.join(binaryDir, 'userData');
 
-app.setPath('userData', customUserDataPath);
+app.setPath('userData', targetUserData);
 console.log(`[Storage] User Data directory set to: ${app.getPath('userData')}`);
 
 // Apply global command-line switches based on config before app is ready

@@ -28,7 +28,7 @@
     },
     "mac": {
       "target": ["dmg"],
-      "icon": "icon.png"
+      "icon": "icon_BIG.png"
     }
   },
   "devDependencies": {
