@@ -1,72 +1,96 @@
-
-name: Build Electron
+name: Build and Release
 
 on:
   workflow_dispatch:
     inputs:
-      windows:
-        description: Build for Windows
+      build_windows:
+        description: 'Build for Windows (x64)'
+        required: true
         type: boolean
         default: true
-      linux:
-        description: Build for Linux
+      build_macos:
+        description: 'Build for macOS (ARM64/Intel)'
+        required: true
         type: boolean
         default: true
-      macos:
-        description: Build for macOS
+      build_linux:
+        description: 'Build for Linux (AppImage)'
+        required: true
         type: boolean
         default: true
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - id: set-matrix
-        env:
-          WINDOWS: ${{ inputs.windows }}
-          LINUX: ${{ inputs.linux }}
-          MACOS: ${{ inputs.macos }}
-        run: |
-          MATRIX='[]'
-
-          if [ "$WINDOWS" = "true" ]; then
-            MATRIX=$(echo "$MATRIX" | jq -c '. + ["windows"]')
-          fi
-
-          if [ "$LINUX" = "true" ]; then
-            MATRIX=$(echo "$MATRIX" | jq -c '. + ["linux"]')
-          fi
-
-          if [ "$MACOS" = "true" ]; then
-            MATRIX=$(echo "$MATRIX" | jq -c '. + ["macos"]')
-          fi
-
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-
   build:
-    needs: prepare
-    if: needs.prepare.outputs.matrix != '[]'
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+        include:
+          - os: windows-latest
+            platform: win
+            enabled: ${{ inputs.build_windows }}
+          - os: macos-latest
+            platform: mac
+            enabled: ${{ inputs.build_macos }}
+          - os: ubuntu-latest
+            platform: linux
+            enabled: ${{ inputs.build_linux }}
+    
+    # Only run the job for platforms where the checkbox is checked!
+    if: matrix.enabled == true
 
-    runs-on: >-
-      ${{
-        matrix.platform == 'windows' && 'windows-latest' ||
-        matrix.platform == 'linux' && 'ubuntu-latest' ||
-        'macos-latest'
-      }}
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: 'npm' # Caches npm packages to speed up macOS and Windows!
 
-      - run: npm ci
-      - run: npx electron-builder
+      - name: Install dependencies
+        run: npm install --no-bin-links
+
+      - name: Build platform executable
+        run: node ./node_modules/electron-builder/out/cli/cli.js --publish never
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+            path: downloaded-artifacts
+            merge-multiple: true # Flattens artifacts into a single folder for easy release attachment
+
+      - name: Generate timestamp tag
+        id: meta
+        run: echo "tag_name=v1.0.$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: "SDAppStore HTML Electron Runtime Release (${{ steps.meta.outputs.tag_name }})"
+          body: |
+            Manual selective build release for the **SDAppStore HTML Electron Runtime**.
+            - Built from commit: ${{ github.sha }}
+            - Selected platform binaries are attached below.
+          draft: false
+          prerelease: false
+          files: |
+            downloaded-artifacts/*
